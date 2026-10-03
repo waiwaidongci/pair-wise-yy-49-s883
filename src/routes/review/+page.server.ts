@@ -23,6 +23,7 @@ export const actions = {
       submitter: parsed.data.submitter,
       status: '待审阅' as const,
       comment: '',
+      source: '站内提交',
     }
     reviewItems.unshift(item)
     return { success: true, item }

@@ -2,9 +2,12 @@
   import { enhance } from '$app/forms'
   import type { ActionData } from './$types'
   import { curriculumStore } from '$lib/stores'
+  import type { ImportResult } from '$lib/stores'
   let { form }: { form: ActionData } = $props()
   let selectedIds = $state<string[]>([])
   let reviewComments = $state<Record<string, string>>({})
+  let importResults = $state<Record<string, ImportResult>>({})
+  let weightFixes = $state<Record<string, number>>({})
   const pending = $derived($curriculumStore.reviewItems.filter((item) => item.status === '待审阅'))
   const courseNames = $derived($curriculumStore.nodes.filter((node) => node.type === '课程'))
   const requirements = $derived($curriculumStore.nodes.filter((node) => node.type === '毕业要求'))
@@ -19,6 +22,21 @@
       if (item) curriculumStore.updateReview(id, '已附议', '批量附议：证据链完整。')
     })
     selectedIds = []
+  }
+
+  function runImport(receiptId: string) {
+    const result = curriculumStore.importReceipt(receiptId)
+    importResults[receiptId] = result
+    result.failures.forEach((failure) => {
+      const item = $curriculumStore.receipts.find((receipt) => receipt.id === receiptId)?.items.find((entry) => entry.id === failure.itemId)
+      if (item && weightFixes[failure.itemId] === undefined) weightFixes[failure.itemId] = item.weight
+    })
+  }
+
+  function fixAndRetry(receiptId: string, itemId: string) {
+    const weight = weightFixes[itemId]
+    if (typeof weight === 'number' && !Number.isNaN(weight)) curriculumStore.fixReceiptItem(receiptId, itemId, weight)
+    runImport(receiptId)
   }
 </script>
 
@@ -36,6 +54,73 @@
     <div class="notice error">表单未通过校验：{Object.values(form.errors).flat().join('；')}</div>
   {/if}
 
+  <section class="panel receipts">
+    <div class="panel-head"><h3>离线回执合并</h3><span class="muted">当前修订 {$curriculumStore.revision} · 过期或超范围项不覆盖，仅列出冲突与现场值</span></div>
+    <div class="receipt-list">
+      {#each $curriculumStore.receipts as receipt}
+        {@const remaining = receipt.items.filter((item) => !item.merged)}
+        {@const result = importResults[receipt.id]}
+        <article class="receipt">
+          <header>
+            <div>
+              <strong>{receipt.id} · {receipt.teacher}</strong>
+              <small>负责 {receipt.requirements.join('、')} · {receipt.receivedAt} 收到</small>
+            </div>
+            <span class="rev-tag" class:stale={receipt.baseRevision !== $curriculumStore.revision}>收到版本 {receipt.baseRevision}{receipt.baseRevision === $curriculumStore.revision ? ' · 与当前一致' : ' · 已过期'}</span>
+          </header>
+          <table>
+            <thead><tr><th>回执项</th><th>课程映射</th><th>回执值</th><th>状态</th><th>修正</th></tr></thead>
+            <tbody>
+              {#each receipt.items as item}
+                {@const failed = result?.failures.find((failure) => failure.itemId === item.id)}
+                <tr>
+                  <td>{item.id}</td>
+                  <td>{item.requirementId} → {item.courseId}<small>{item.note}</small></td>
+                  <td>{item.relation} · {item.weight}</td>
+                  <td>{#if item.merged}<span class="tag done">已并入</span>{:else}<span class="tag">待并入</span>{/if}</td>
+                  <td class="fix-cell">
+                    {#if failed && !item.merged}
+                      <input type="number" min="0" max="1" step="0.05" bind:value={weightFixes[item.id]} />
+                      <button class="btn-secondary" onclick={() => fixAndRetry(receipt.id, item.id)}>修正并重试</button>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+          <footer>
+            <button class="btn-primary" disabled={remaining.length === 0} onclick={() => runImport(receipt.id)}>{receipt.items.some((item) => item.merged) && remaining.length > 0 ? '重试未并入项' : '导入回执'}</button>
+            <span class="muted">{receipt.items.length - remaining.length}/{receipt.items.length} 项已并入</span>
+          </footer>
+          {#if result}
+            {#if result.error}
+              <div class="notice error">{result.error}</div>
+            {/if}
+            {#if result.conflicts.length > 0}
+              <div class="conflict-box">
+                <strong>冲突项（未覆盖现场值）</strong>
+                {#each result.conflicts as conflict}
+                  <div>
+                    <span>{conflict.itemId} · {conflict.reason}</span>
+                    <span>回执值 {conflict.incoming.relation} {conflict.incoming.weight}</span>
+                    <span>现场值 {conflict.live ? `${conflict.live.relation} ${conflict.live.weight}` : '当前无此映射'}</span>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+            {#if result.failures.length > 0}
+              <div class="notice error">导入失败，已保留原修订 {$curriculumStore.revision}：{result.failures.map((failure) => `${failure.itemId}（${failure.message}）`).join('；')}。重试只处理尚未并入的回执项。</div>
+            {:else if result.merged.length > 0}
+              <div class="notice success">已并入 {result.merged.length} 项{result.skipped.length ? `，跳过已并入 ${result.skipped.length} 项` : ''}，生成新修订 {result.newRevision}；图谱、覆盖矩阵与审阅队列已刷新。</div>
+            {:else if !result.error}
+              <div class="notice">没有可并入的回执项{result.skipped.length ? `（${result.skipped.length} 项此前已并入）` : ''}。</div>
+            {/if}
+          {/if}
+        </article>
+      {/each}
+    </div>
+  </section>
+
   <div class="review-layout">
     <section class="panel">
       <div class="panel-head"><h3>审阅队列</h3><span class="muted">{pending.length} 项待处理</span></div>
@@ -49,7 +134,7 @@
                 <span class:approved={item.status === '已附议'} class:returned={item.status === '已退回'}>{item.status}</span>
               </div>
               <p>{item.evidence}</p>
-              <small>对应 {requirements.find((node) => node.id === item.requirementId)?.label.split('\n')[0]} · {item.submitter} 提交</small>
+              <small>对应 {requirements.find((node) => node.id === item.requirementId)?.label.split('\n')[0]} · {item.submitter} 提交 · 来源：{item.source}</small>
               {#if item.status === '待审阅'}
                 <div class="review-actions">
                   <input bind:value={reviewComments[item.id]} placeholder="填写附议或退回意见" />
@@ -89,6 +174,26 @@
   .actions { display: flex; gap: 8px; }
   .notice { margin-bottom: 12px; padding: 12px 14px; border-left: 3px solid #3f8869; color: #27634d; background: #ebf6f0; }
   .notice.error { border-color: #bd4d35; color: #913c2b; background: #fff1ec; }
+  .receipts { margin-bottom: 14px; }
+  .receipt-list { display: grid; gap: 12px; padding: 14px 16px 16px; }
+  .receipt { padding: 12px 14px; border: 1px solid #e2e8e8; border-radius: 8px; }
+  .receipt header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .receipt header small { display: block; margin-top: 4px; color: #839096; }
+  .rev-tag { padding: 3px 8px; border-radius: 5px; color: #2e7359; background: #e7f4ec; font-size: 10px; white-space: nowrap; }
+  .rev-tag.stale { color: #a94331; background: #ffebe6; }
+  .receipt table { width: 100%; margin: 10px 0; border-collapse: collapse; font-size: 12px; }
+  .receipt th, .receipt td { padding: 7px 8px; border-bottom: 1px solid #edf0f0; text-align: left; }
+  .receipt th { color: #75848a; font-size: 10px; font-weight: 600; }
+  .receipt td small { display: block; color: #839096; }
+  .tag { padding: 2px 6px; border-radius: 4px; color: #9b5a25; background: #fff0de; font-size: 10px; }
+  .tag.done { color: #2e7359; background: #e7f4ec; }
+  .fix-cell { white-space: nowrap; }
+  .fix-cell input { width: 74px; margin-right: 6px; }
+  .receipt footer { display: flex; align-items: center; gap: 10px; }
+  .receipt .notice { margin: 10px 0 0; }
+  .conflict-box { margin-top: 10px; padding: 10px 12px; border-left: 3px solid #cd813a; background: #fff6e9; font-size: 11px; }
+  .conflict-box strong { display: block; margin-bottom: 6px; }
+  .conflict-box div { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; color: #6c6256; }
   .review-layout { display: grid; grid-template-columns: minmax(0,1fr) 360px; gap: 14px; align-items: start; }
   .review-list { padding: 8px 16px 16px; }
   .review-list article { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 9px; padding: 14px 0; border-bottom: 1px solid #e8eded; }

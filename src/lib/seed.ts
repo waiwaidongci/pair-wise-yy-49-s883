@@ -23,6 +23,26 @@ export type ReviewItem = {
   submitter: string
   status: '待审阅' | '已附议' | '已退回'
   comment: string
+  source: string
+}
+
+export type ReceiptItem = {
+  id: string
+  requirementId: string
+  courseId: string
+  relation: Mapping['relation']
+  weight: number
+  note: string
+  merged: boolean
+}
+
+export type Receipt = {
+  id: string
+  teacher: string
+  baseRevision: string
+  requirements: string[]
+  receivedAt: string
+  items: ReceiptItem[]
 }
 
 export const nodes: GraphNode[] = [
@@ -55,9 +75,45 @@ export const mappings: Mapping[] = [
 ]
 
 export const reviewItems: ReviewItem[] = [
-  { id: 'REV-201', courseId: 'C-308', requirementId: 'GR-03', evidence: '需求追踪矩阵、迭代评审记录、测试覆盖报告与教师评价量表。', submitter: '软件工程课程组', status: '待审阅', comment: '' },
-  { id: 'REV-202', courseId: 'C-308', requirementId: 'GR-06', evidence: '增加数据合规案例分析，但尚未提供评分记录。', submitter: '软件工程课程组', status: '待审阅', comment: '' },
-  { id: 'REV-203', courseId: 'C-205', requirementId: 'GR-01', evidence: '图算法实践已覆盖复杂工程问题建模，作业与测验记录完整。', submitter: '数据结构课程组', status: '已附议', comment: '覆盖证据充分，建议保留。' },
+  { id: 'REV-201', courseId: 'C-308', requirementId: 'GR-03', evidence: '需求追踪矩阵、迭代评审记录、测试覆盖报告与教师评价量表。', submitter: '软件工程课程组', status: '待审阅', comment: '', source: '站内提交' },
+  { id: 'REV-202', courseId: 'C-308', requirementId: 'GR-06', evidence: '增加数据合规案例分析，但尚未提供评分记录。', submitter: '软件工程课程组', status: '待审阅', comment: '', source: '站内提交' },
+  { id: 'REV-203', courseId: 'C-205', requirementId: 'GR-01', evidence: '图算法实践已覆盖复杂工程问题建模，作业与测验记录完整。', submitter: '数据结构课程组', status: '已附议', comment: '覆盖证据充分，建议保留。', source: '站内提交' },
 ]
 
-export const seedState = { nodes, mappings, reviewItems, revision: 'R12', locked: false }
+export const receipts: Receipt[] = [
+  {
+    id: 'RCPT-01',
+    teacher: '顾明 · 软件工程课程组',
+    baseRevision: 'R12',
+    requirements: ['GR-03', 'GR-06'],
+    receivedAt: '2026-09-30',
+    items: [
+      { id: 'RCPT-01-A', requirementId: 'GR-03', courseId: 'C-308', relation: '支撑', weight: 1, note: '迭代评审记录已补齐，支撑权重上调。', merged: false },
+      { id: 'RCPT-01-B', requirementId: 'GR-06', courseId: 'C-308', relation: '支撑', weight: 0.85, note: '数据合规案例评分记录已归档。', merged: false },
+      { id: 'RCPT-01-C', requirementId: 'GR-01', courseId: 'C-101', relation: '支撑', weight: 0.6, note: '建议下调程序设计基础支撑权重。', merged: false },
+    ],
+  },
+  {
+    id: 'RCPT-02',
+    teacher: '数据结构课程组',
+    baseRevision: 'R11',
+    requirements: ['GR-01'],
+    receivedAt: '2026-09-26',
+    items: [
+      { id: 'RCPT-02-A', requirementId: 'GR-01', courseId: 'C-205', relation: '支撑', weight: 0.9, note: '图算法实践覆盖复杂工程问题建模。', merged: false },
+    ],
+  },
+  {
+    id: 'RCPT-03',
+    teacher: '顾明 · 软件工程课程组',
+    baseRevision: 'R12',
+    requirements: ['GR-03'],
+    receivedAt: '2026-10-01',
+    items: [
+      { id: 'RCPT-03-A', requirementId: 'GR-03', courseId: 'C-205', relation: '支撑', weight: 0.75, note: '数据结构课程同步支撑方案设计。', merged: false },
+      { id: 'RCPT-03-B', requirementId: 'GR-03', courseId: 'C-308', relation: '考核', weight: 1.25, note: '离线表格权重填写越界，待修正。', merged: false },
+    ],
+  },
+]
+
+export const seedState = { nodes, mappings, reviewItems, receipts, revision: 'R12', locked: false }

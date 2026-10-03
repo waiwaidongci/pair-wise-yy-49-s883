@@ -15,4 +15,14 @@ export const mappingSchema = z.object({
   weight: z.number().min(0).max(1),
 })
 
+export const receiptItemSchema = z.object({
+  id: z.string().min(1),
+  requirementId: z.string().min(1),
+  courseId: z.string().min(1),
+  relation: z.enum(['支撑', '前置', '考核', '教学']),
+  weight: z.number().min(0, '权重需在 0–1 之间').max(1, '权重需在 0–1 之间'),
+  note: z.string(),
+  merged: z.boolean(),
+})
+
 export type RevisionInput = z.infer<typeof revisionSchema>
