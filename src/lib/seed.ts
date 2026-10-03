@@ -25,6 +25,24 @@ export type ReviewItem = {
   comment: string
 }
 
+export type ReceiptItem = {
+  id: string
+  courseId: string
+  requirementId: string
+  status: '已附议' | '已退回'
+  comment: string
+  merged: boolean
+}
+
+export type Receipt = {
+  id: string
+  source: string
+  receivedRevision: string
+  scope: string[]
+  items: ReceiptItem[]
+  importedAt: string
+}
+
 export const nodes: GraphNode[] = [
   { id: 'OBJ-01', label: '培养目标 1\n服务区域数字产业', type: '目标', x: 70, y: 70 },
   { id: 'OBJ-02', label: '培养目标 2\n具备工程创新能力', type: '目标', x: 70, y: 210 },
@@ -60,4 +78,51 @@ export const reviewItems: ReviewItem[] = [
   { id: 'REV-203', courseId: 'C-205', requirementId: 'GR-01', evidence: '图算法实践已覆盖复杂工程问题建模，作业与测验记录完整。', submitter: '数据结构课程组', status: '已附议', comment: '覆盖证据充分，建议保留。' },
 ]
 
-export const seedState = { nodes, mappings, reviewItems, revision: 'R12', locked: false }
+export const receipts: Receipt[] = [
+  {
+    id: 'RCPT-01',
+    source: '软件工程课程组',
+    receivedRevision: 'R12',
+    scope: ['GR-03', 'GR-06'],
+    importedAt: '2026-10-02T09:00:00+08:00',
+    items: [
+      { id: 'REV-201', courseId: 'C-308', requirementId: 'GR-03', status: '已附议', comment: '需求追踪矩阵与迭代评审记录完整，同意纳入修订。', merged: false },
+      { id: 'REV-202', courseId: 'C-308', requirementId: 'GR-06', status: '已退回', comment: '数据合规案例缺少评分记录，需补充证据后再审。', merged: false },
+    ],
+  },
+]
+
+export const sampleReceipts: Receipt[] = [
+  {
+    id: 'RCPT-02',
+    source: '数据结构课程组',
+    receivedRevision: 'R11',
+    scope: ['GR-01'],
+    importedAt: '2026-10-03T08:00:00+08:00',
+    items: [
+      { id: 'REV-203', courseId: 'C-205', requirementId: 'GR-01', status: '已附议', comment: '图算法实践已覆盖复杂工程问题建模，同意纳入。', merged: false },
+    ],
+  },
+  {
+    id: 'RCPT-03',
+    source: '外聘行业教师',
+    receivedRevision: 'R12',
+    scope: ['GR-01'],
+    importedAt: '2026-10-03T08:05:00+08:00',
+    items: [
+      { id: 'REV-201', courseId: 'C-308', requirementId: 'GR-03', status: '已附议', comment: '行业案例匹配度高，建议纳入。', merged: false },
+    ],
+  },
+  {
+    id: 'RCPT-04',
+    source: '软件工程课程组',
+    receivedRevision: 'R12',
+    scope: ['GR-03', 'GR-06'],
+    importedAt: '2026-10-03T08:10:00+08:00',
+    items: [
+      { id: 'REV-202', courseId: 'C-308', requirementId: 'GR-06', status: '已退回', comment: '评分记录仍不完整，维持退回。', merged: false },
+    ],
+  },
+]
+
+export const seedState = { nodes, mappings, reviewItems, revision: 'R12', locked: false, receipts }
